@@ -1,0 +1,124 @@
+---
+title: "Income per capita and democracy score"
+author: "Kyle Kehoe"
+date: "2024-02-12"
+output: html_document
+---
+
+```{r setup, echo=FALSE, message=F, warning=F, include=FALSE}
+
+rm(list = ls())
+setwd("C:\\Users\\kehky\\Downloads\\GDP_Democracy")
+### Load the packages (all must have been installed)
+     library(tidyverse)
+    library(doBy)
+    library(foreign)
+    library(knitr)
+    library(lmtest)
+    library(readstata13)
+    library(sandwich)
+    library(stargazer)
+    library(AER)
+    library(gdata)
+    library(wooldridge)
+    library(openintro)
+
+
+cse=function(reg) {
+        rob=sqrt(diag(vcovHC(reg, type="HC1")))
+        return(rob)
+        }
+
+```
+
+```{r data, echo=FALSE, warning=FALSE, include=FALSE}
+#Read the CSV file
+incdemo <- read.csv("incdemo1995.csv", header=TRUE, sep=",")
+```
+
+
+```{r stargazer,echo=FALSE, warning=FALSE,comment=""}
+
+stargazer(incdemo[c("log_gdppc", "dem_ind", "log_pop", "educ", "age_median")], type="text", title="Descriptive Statistics", summary.stat=c("n", "median", "mean", "sd","min", "max"), flip=FALSE)
+
+```
+
+From the descriptive statistics we can see there are 93 countries in this dataset.Based on the means and Medians and st.dev. we can infer that Log_GDP has moderate variability based on its st.dev, with only a slight left skew based on mean and median. Dem_ind appears to be left skewed and has a significant amount of variability in its data. Log_pop has a very mild right skew with significant deviation in the data. Educ is similar to the last very mild right skew with significant variability in the data. Finally Age_median once again has a moderate right skew with significant variability.
+`
+
+```{r images, echo=FALSE, warning=FALSE, message=FALSE,comment=""}
+ggplot(incdemo, aes(y=log_gdppc, x=dem_ind)) + geom_point(col="blue") + geom_text(aes(label=country), hjust=1, vjust=1) +labs(title="Log Real GDP vs Democracy Index", x="Log Real GDP", y ="Democracy Index") + stat_smooth(method="lm", col= "red", se=FALSE)
+
+
+```
+
+We'll boot up a few regressions to look how some of these variables affect the regression and then determine which regression best models the affects democracy index on of real GDP per capita
+
+```{r regression, echo=FALSE, warning=FALSE, message=FALSE, comment=""}
+
+regr1<-lm(log_gdppc~dem_ind, data=incdemo)
+regr2<-lm(log_gdppc~dem_ind+log_pop, data=incdemo)
+regr3<-lm(log_gdppc~dem_ind+log_pop+educ, data=incdemo)
+regr4<-lm(log_gdppc~dem_ind+log_pop+educ+age_median, data=incdemo)
+
+# displays the regression results
+stargazer(regr1, regr2, regr3,regr4, se=list(cse(regr1), cse(regr2), cse(regr3), cse(regr4)), 
+        title="Real GDP on Democracy index", type="text", 
+        star.cutoffs=NA, df=FALSE, digits=3, omit.stat=c( "f"))
+```
+
+Regression 1: a 1 unit increase in the democracy index is associated with a 2.11% increase in GDP
+Regression 2: a 1 unit increase in the democracy index is associated with a 2.14% increase in GDP
+Regression 3: a 1 unit increase in the democracy index is associated with a .60% increase in GDP
+Regression 4: a 1 unit increase in the democracy index is associated with a .162% increase in GDP
+These results are very interesting, it appears that there is string evidence of omitted variable bias, particularly with the large drop we see in anticipated GDP from Regression 2 to Regression 3 where it would be an omitted variable upward bias which means we have been over-anticipating the results on Real GDP for the democratic index. This leads me to believe that regression 3 and 4 are likely much more accurately predict the outcome democracy index has on GDP, especially with the large increase in R2 values where in regression 3 76% of GDP increase is accounted for by the democracy index while holding all 3 variables constant and Regression 4 has almost 83% accounted for.
+
+Since Regression 4 seems to do the best job so far let's look at how 2 ficticious countries would compare, if we held all variables constant and only looked at the extremes of the democracy index what would the change on real gdp per capita be?
+```{r prediction, echo=FALSE, warning=FALSE, message=FALSE}
+
+dem0<-data.frame(dem_ind = 1,  log_pop = log(300000),  educ = 12,  age_median = 35  )
+dem1<-data.frame(dem_ind =0,  log_pop = log(300000),  educ = 12,  age_median = 35  )
+
+#predict(regr4, newdata=dem0)
+
+#predict(regr4, newdata=dem1)
+
+#Convert predictions of log real GDP per capita to real GDP per capita
+print('predicted real gdp if Democracy ind=0, educ=12, log_pop=log(300K), median age=35')
+exp(predict(regr4, newdata=dem0))
+print('predicted real gdp if Democracy ind=1, educ=12, log_pop=log(300K), median age=35')
+exp(predict(regr4, newdata=dem1))
+
+
+```
+
+
+
+If we hold the education, median age, and population constant and the only thing we change is the democracy index being full 1 or full 0 then real GDP per capita is expected to be $4468.4 higher. This is a significant increase of 17.6% over the Democracy index=0 country.
+
+Finally let's do a linear hypothesis test to see if both population and median age should be in this regression.
+```{r Linear hypothesis test, echo=FALSE, warning=FALSE, message=FALSE}
+lht(regr4, c("log_pop=0", "age_median=0"), white.adjust="hc1")
+
+```
+
+the hypothesis test states that the p-value is approximately 0.00000002351 which is strong evidence that we should reject the null hypothesis and should keep at least one of the coefficients in the regression.
+
+Overall from this entire exercise we can conclude that Real GDP per Capita is positively influenced by having a higher democracy index score. The strongest regression we had to model this was regression 4 which surprisingly predicted for 2 ficticious countries with a median age of 35, population of 300,000 people, education of 12 and the only differences being 1 country maxing out the Democracy index at 1 and another minimizing it's score at 0 there would be a 17.6% increase in real gdp per capita.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
